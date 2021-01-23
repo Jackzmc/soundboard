@@ -3,12 +3,13 @@
   <div class="container" v-if="!noIndexDB">
     <br>
     <div class="has-text-centered">
-      <h2 class="title is-2">Soundboard</h2>
+      <h2 class="title is-2">Soundboard v{{$options.VERSION}}</h2>
       <b-button class="has-text-centered" @click="addNewFile">New File</b-button>
     </div>
     <br>
     <div class="columns is-multiline">
-      <div class="column is-2" v-for="group in groups" :key="group.name">
+      <b-loading :is-full-page="false" :active="loading" />
+      <div class="column is-3" v-for="group in groups" :key="group.name">
         <a @click="play(group.name)" class="box has-background-info has-text-white ">
           <h4 class="title is-inline is-4 has-text-white">{{group.name}}</h4>
           <a class="button is-small is-pulled-right is-warning is-outlined " @click="edit(group.name)"><b-icon icon="pencil" class="is-pulled-right"  /></a>
@@ -33,6 +34,7 @@
                 placeholder="Add a clip"
                 field="name"
                 @typing="searchClips"
+                ref="taginput"
               >
               <template v-slot="props">
                 <p v-if="props.option.alias"><b>{{props.option.alias}}</b> {{props.option.name}}</p>
@@ -63,6 +65,7 @@
 
 <script>
 const DB_VERSION = 1;
+const VERSION = "0.1.0-beta";
 let justEdited = false;
 
 let audioClips = [];
@@ -71,8 +74,10 @@ import AddFileModal from '@/components/AddFileModal.vue'
 
 export default {
   name: 'App',
+  VERSION,
   data() {
     return {
+      loading: true,
       noIndexDB: false,
       db: null,
       table: null,
@@ -215,11 +220,10 @@ export default {
       this.db.transaction("audio").objectStore("audio").getAll().onsuccess = (event) => {
         const clips = event.target.result;
         audioClips = clips
-        console.log('audio', clips)
+        this.loading = false;
       }
       this.db.transaction("groups").objectStore("groups").getAll().onsuccess = (event) => {
         this.groups = event.target.result
-        console.log('groups', this.groups)
       }
     }
 
