@@ -4,55 +4,31 @@
     <br>
     <div class="has-text-centered">
       <h2 class="title is-2">Soundboard v{{$options.VERSION}}</h2>
-      <b-button class="has-text-centered" @click="addNewFile">New File</b-button>
+      <div class="buttons has-text-centered">
+        <b-button @click="addNewFile">Click to add a new audio clip</b-button>
+        <b-button type="is-secondary" @click="listFiles">View Clips</b-button>
+      </div>
     </div>
     <br>
     <div class="columns is-multiline">
       <b-loading :is-full-page="false" :active="loading" />
       <div class="column is-3" v-for="group in groups" :key="group.name">
         <a @click="play(group.name)" class="box has-background-info has-text-white ">
-          <h4 class="title is-inline is-4 has-text-white">{{group.name}}</h4>
-          <a class="button is-small is-pulled-right is-warning is-outlined " @click="edit(group.name)"><b-icon icon="pencil" class="is-pulled-right"  /></a>
-          <p class="subtitle is-6 has-text-white">{{group.description}}</p>
-          <hr>
-          <ul>
-            <li v-for="file in group.files" :key="file">{{file}}</li>
-          </ul>
+          <br>
+          <h1 class="title is-1 has-text-white has-text-centered">{{group.name}}</h1>
+          <a class="button is-small is-pulled-right is-warning is-outlined " @click="edit(group)"><b-icon icon="pencil" class="is-pulled-right"  /></a>
+          <p v-if="group.description" class="subtitle is-6 has-text-white">{{group.description}}</p>
+          <br v-else>
+          <br>
         </a>
       </div>
       <div class="column is-3">
         <div class="box has-background-success has-text-white ">
-          <input type="text" v-model="groupAdder.name" placeholder="My new group" class="transparent is-inline has-text-white title is-4" />
-          <textarea type="textarea" cols="10" style="padding-bottom: 0" rows=2 v-model="groupAdder.description" class="transparent has-text-white subtitle is-inline" placeholder="Click to enter a description" />
+          <input type="text" v-model="groupAdder.name" placeholder="My new group" class="transparent  has-text-white title is-4" style="margin-bottom: 0" />
+          <!-- <textarea type="textarea" cols="10" style="padding-bottom: 0" rows=2 v-model="groupAdder.description" class="transparent has-text-white subtitle is-inline" placeholder="Click to enter a description" /> -->
           <hr>
-          <b-field label="Add Files">
-            <b-taginput
-                v-model="groupAdder.files"
-                :data="clipSearchResults"
-                autocomplete
-                :allow-new="false"
-                placeholder="Add a clip"
-                field="name"
-                @typing="searchClips"
-                ref="taginput"
-              >
-              <template v-slot="props">
-                <p v-if="props.option.alias"><b>{{props.option.alias}}</b> {{props.option.name}}</p>
-                <p v-else>{{props.option.name}}</p>
-              </template>
-              <template #selected="props">
-                  <b-tag
-                      v-for="(tag, index) in props.tags"
-                      :key="index"
-                      rounded
-                      :tabstop="false"
-                      ellipsis
-                      closable
-                      @close="$refs.taginput.removeTag(index, $event)">
-                      {{tag.alias || tag.name}}
-                  </b-tag>
-              </template>
-            </b-taginput>
+          <b-field>
+            <ClipSearcher v-model="groupAdder.files" :clips="audioClips" />
           </b-field>
           <div><b-button type="is-info" @click="createGroup">Create Group</b-button></div>
         </div>
@@ -68,9 +44,10 @@ const DB_VERSION = 1;
 const VERSION = "0.1.0-beta";
 let justEdited = false;
 
-let audioClips = [];
-
 import AddFileModal from '@/components/AddFileModal.vue'
+import ListClipModal from '@/components/ListClipModal.vue'
+import EditGroupModal from '@/components/EditGroupModal.vue'
+import ClipSearcher from '@/components/ClipSearcher.vue'
 
 export default {
   name: 'App',
@@ -80,15 +57,14 @@ export default {
       loading: true,
       noIndexDB: false,
       db: null,
-      table: null,
       groupAdder: {
         name: null,
         description: null,
         files: []
       },
       groups: [],
-      clipSearchResults: [],
-      prevAudio: null
+      prevAudio: null,
+      audioClips: []
     }
   },
   computed: {
@@ -109,9 +85,9 @@ export default {
           group.clips = {}
           group.files.forEach(name => {
             //get file from indexDB
-            const clip = audioClips.find(clip => clip.name === name || clip.alias === name)
-            if(!clip) console.warn(`Could not find a clip for ${name}`)
-            else group.clips[name] = clip.data
+            const clip = this.audioClips.find(clip => clip.name === name || clip.alias === name)
+            if(clip) group.clips[name] = clip.data
+            else console.warn(`Could not find a clip for ${name}`)
           })
           group.loaded = true;
         }
@@ -126,19 +102,45 @@ export default {
       }
       justEdited = false;
     },
-    searchClips(text) {
-      this.clipSearchResults = audioClips.filter((clip) => {
-          return clip.name
-              .toLowerCase()
-              .indexOf(text.toLowerCase()) >= 0
-            || clip.alias
-              .toLowerCase()
-              .indexOf(text.toLowerCase()) >= 0
-      })
-    },
     edit(group) {
       justEdited = true;
-      return alert('edit not implemented', group);
+      group = Object.assign({}, group)
+      group.clips = [];
+      group.files.forEach(name => {
+        //get file from indexDB
+        const clip = this.audioClips.find(clip => clip.name === name || clip.alias === name)
+        if(clip) group.clips.push(clip)
+        else console.warn(`Could not find a clip for ${name}`)
+      })
+      this.$buefy.modal.open({
+        parent: this,
+        component: EditGroupModal,
+        props: {
+          group,
+          clips: this.audioClips
+        },
+        events: {
+          save: (group) => {
+            const index = this.groups.indexOf(group.name);
+            if(index > -1) {
+              this.groups[index] = group;
+            }else{
+              console.warn('Could not find cached group to update', group.name)
+            }
+          },
+          delete: (groupName) => {
+            this.db.transaction("groups", "readwrite").objectStore("groups").delete(groupName).onsuccess = () => {
+              const index = this.groups.indexOf(groupName);
+              if(index > -1) {
+                this.groups.splice(index, 1)
+                console.log(`Created group ${this.groupAdder.name} successfully`)
+              }else{
+                console.warn('Could not find cached group to delete', groupName)
+              }
+            }
+          }
+        }
+      })
     },
     addNewFile() {
       this.$buefy.modal.open({
@@ -148,28 +150,42 @@ export default {
           upload: ({file, alias, files}) =>  {
             if(files) {
               files.forEach(file => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file)
-                reader.addEventListener("load", () => {
-                  const transaction = this.db.transaction("audio", "readwrite").objectStore("audio").add({
-                    name: file.name,
-                    size: file.size,
-                    data: reader.result
-                  })
-                  transaction.onsuccess = () => {
-                    console.log(`Uploaded file ${file.name} successfully`)
-                  }
-                  transaction.onerror = () => {
-                    alert('File already exists with that name or alias.')
-                  }
-                }, false);
+                this.addFile(file)
               })
             }else if(file) {
-              
+              this.addFile(file)
             }else{
               alert('Invalid')
             }
           }
+        }
+      })
+    },
+    addFile(file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file)
+      reader.addEventListener("load", () => {
+        const obj = {
+          name: file.name,
+          size: file.size,
+          data: reader.result
+        }
+        const transaction = this.db.transaction("audio", "readwrite").objectStore("audio").add(obj)
+        transaction.onsuccess = () => {
+          this.audioClips.push(obj)
+          console.log(`Uploaded file ${file.name} successfully`)
+        }
+        transaction.onerror = () => {
+          alert('File already exists with that name or alias.')
+        }
+      }, false);
+    },
+    listFiles() {
+      this.$buefy.modal.open({
+        parent: this,
+        component: ListClipModal,
+        props: {
+          clips: this.audioClips
         }
       })
     },
@@ -219,7 +235,7 @@ export default {
 
       this.db.transaction("audio").objectStore("audio").getAll().onsuccess = (event) => {
         const clips = event.target.result;
-        audioClips = clips
+        this.audioClips = clips
         this.loading = false;
       }
       this.db.transaction("groups").objectStore("groups").getAll().onsuccess = (event) => {
@@ -230,12 +246,15 @@ export default {
     //Finally, access the audio clips:
     
   },
+  components: {
+    ClipSearcher
+  }
 }
 </script>
 
 <style>
 a.box:hover {
-  border-radius: 12px;
+  border-radius: 8px;
 }
 .transparent {
   background: transparent;
