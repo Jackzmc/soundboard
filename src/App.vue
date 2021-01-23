@@ -3,7 +3,7 @@
   <div class="container" v-if="!noIndexDB">
     <br>
     <div class="has-text-centered">
-      <h2 class="title is-2">Soundboard v{{$options.VERSION}}</h2>
+      <h2 class="title is-2">Soundboard v{{$VERSION}}</h2>
       <div class="buttons has-text-centered">
         <b-button @click="addNewFile">Click to add a new audio clip</b-button>
         <b-button type="is-secondary" @click="listFiles">View Clips</b-button>
@@ -41,7 +41,6 @@
 
 <script>
 const DB_VERSION = 1;
-const VERSION = "0.1.0-beta";
 let justEdited = false;
 
 import AddFileModal from '@/components/AddFileModal.vue'
@@ -51,7 +50,6 @@ import ClipSearcher from '@/components/ClipSearcher.vue'
 
 export default {
   name: 'App',
-  VERSION,
   data() {
     return {
       loading: true,
